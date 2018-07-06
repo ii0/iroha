@@ -4,8 +4,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "builders/protobuf/common_objects/proto_signature_builder.hpp"
-#include "cryptography/crypto_provider/crypto_defaults.hpp"
+#include "module/shared_model/interface_mocks.hpp"
 #include "validation/utils.hpp"
 
 using namespace iroha::validation;
@@ -13,12 +12,7 @@ using namespace shared_model::crypto;
 
 class SignaturesSubset : public testing::Test {
  public:
-  auto makeSignature(PublicKey key, std::string sign) {
-    return shared_model::proto::SignatureBuilder()
-        .publicKey(key)
-        .signedData(Signed(sign))
-        .build();
-  }
+  std::vector<PublicKey> keys{PublicKey("a"), PublicKey("b"), PublicKey("c")};
 };
 
 /**
@@ -27,10 +21,10 @@ class SignaturesSubset : public testing::Test {
  * @then returned true
  */
 TEST_F(SignaturesSubset, Equal) {
-  std::vector<PublicKey> keys{PublicKey("a"), PublicKey("b"), PublicKey("c")};
-  std::vector<shared_model::proto::Signature> signatures;
-  for (const auto &k : keys) {
-    signatures.push_back(makeSignature(k, ""));
+  std::array<SignatureMock, 3> signatures;
+  for (size_t i = 0; i < signatures.size(); ++i) {
+    EXPECT_CALL(signatures[i], publicKey())
+        .WillRepeatedly(testing::ReturnRef(keys[i]));
   }
   ASSERT_TRUE(signaturesSubset(signatures, keys));
 }
@@ -42,13 +36,13 @@ TEST_F(SignaturesSubset, Equal) {
  * @then returned false
  */
 TEST_F(SignaturesSubset, Lesser) {
-  std::vector<PublicKey> keys{PublicKey("a"), PublicKey("b")};
-  std::vector<shared_model::proto::Signature> signatures;
-  for (const auto &k : keys) {
-    signatures.push_back(makeSignature(k, ""));
+  std::vector<PublicKey> subkeys{keys.begin(), keys.end() - 1};
+  std::array<SignatureMock, 3> signatures;
+  for (size_t i = 0; i < signatures.size(); ++i) {
+    EXPECT_CALL(signatures[i], publicKey())
+        .WillRepeatedly(testing::ReturnRef(keys[i]));
   }
-  signatures.push_back(makeSignature(PublicKey("c"), ""));
-  ASSERT_FALSE(signaturesSubset(signatures, keys));
+  ASSERT_FALSE(signaturesSubset(signatures, subkeys));
 }
 
 /**
@@ -57,12 +51,11 @@ TEST_F(SignaturesSubset, Lesser) {
  * @then returned true
  */
 TEST_F(SignaturesSubset, StrictSubset) {
-  std::vector<PublicKey> keys{PublicKey("a"), PublicKey("b")};
-  std::vector<shared_model::proto::Signature> signatures;
-  for (const auto &k : keys) {
-    signatures.push_back(makeSignature(k, ""));
+  std::array<SignatureMock, 2> signatures;
+  for (size_t i = 0; i < signatures.size(); ++i) {
+    EXPECT_CALL(signatures[i], publicKey())
+        .WillRepeatedly(testing::ReturnRef(keys[i]));
   }
-  keys.push_back(PublicKey("c"));
   ASSERT_TRUE(signaturesSubset(signatures, keys));
 }
 
@@ -72,9 +65,11 @@ TEST_F(SignaturesSubset, StrictSubset) {
  * @then returned false
  */
 TEST_F(SignaturesSubset, PublickeyUniqueness) {
-  std::vector<PublicKey> keys{PublicKey("a"), PublicKey("a")};
-  std::vector<shared_model::proto::Signature> signatures;
-  signatures.push_back(makeSignature(PublicKey("a"), ""));
-  signatures.push_back(makeSignature(PublicKey("c"), ""));
-  ASSERT_FALSE(signaturesSubset(signatures, keys));
+  std::vector<PublicKey> repeated_keys{2, keys[0]};
+  std::array<SignatureMock, 2> signatures;
+  for (size_t i = 0; i < signatures.size(); ++i) {
+    EXPECT_CALL(signatures[i], publicKey())
+        .WillRepeatedly(testing::ReturnRef(keys[i]));
+  }
+  ASSERT_FALSE(signaturesSubset(signatures, repeated_keys));
 }
